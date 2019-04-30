@@ -1,0 +1,3 @@
+wp-config.php
+.htaccess
+lost+found
