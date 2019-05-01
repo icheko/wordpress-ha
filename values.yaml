@@ -7,6 +7,8 @@ app: wordpress-demo
 namespace:
   name: wordpress-ha-demo
 
+# this is required if pulling the wordpress
+# image from a private registry
 pullSecret:
   enabled: true
   name: my-pull-secret
@@ -54,7 +56,7 @@ wordpress:
   enabled: true
   name: wordpress-ro
   image: icheko/wordpress-ha:1.1
-  imagePullSecret: my-pull-secret
+  # imagePullSecret: my-pull-secret
   db:
     host: mysql-ro:3306
     username: root
@@ -76,7 +78,7 @@ wordpress:
       post_max_size = 100M
       max_input_vars = 5000
       max_execution_time = 60
-      display_errors = 1
+      display_errors = 1                                     # turn off for production
       expose_php = Off
       date.timezone = America/Los_Angeles
   storage:
@@ -94,7 +96,7 @@ wordpress_rw:
   enabled: true
   name: wordpress-rw
   image: icheko/wordpress-ha:1.1
-  imagePullSecret: my-pull-secret
+  # imagePullSecret: my-pull-secret
   db:
     host: mysql-rw:3306
     username: root
