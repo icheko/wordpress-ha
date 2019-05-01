@@ -1,0 +1,131 @@
+# Default values for chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+app: wordpress-demo
+
+namespace:
+  name: wordpress-ha-demo
+
+pullSecret:
+  enabled: true
+  name: my-pull-secret
+  value: my-pull-secret-value-as-base-64
+
+mysql:
+  enabled: true
+  name: mysql
+  multiMaster: false
+  useRBAC: false                                            # set to true if cluster uses RBAC
+  replicaCount: 4                                           # 1 master, 3 slave
+  root_pw: my-super-duper-secret-password
+  labels:
+    app: mysql
+    generator: helm
+  storage:
+    dataVolume:
+      size: 10G
+      storageClassName: my-storage-class
+      hostPath: /tmp/data1
+      accessModes:
+        - ReadWriteOnce
+    backupVolume:
+      size: 50G
+      storageClassName: my-storage-class
+      hostPath: /tmp/data2
+      accessModes:
+        - ReadWriteOnce
+
+mysql_admin:
+  enabled: true
+  name: mysql-admin
+  image: phpmyadmin/phpmyadmin:4.7
+  url: mysql-admin.domain.com
+  replicaCount: 1
+  labels:
+    app: mysql-admin
+    generator: helm
+  ingress:
+    annotations:
+      ingress.kubernetes.io/configuration-snippet: |
+        more_set_headers "X-Cluster: k8s";
+
+wordpress:
+  enabled: true
+  name: wordpress-ro
+  image: icheko/wordpress-ha:1.0
+  imagePullSecret: my-pull-secret
+  db:
+    host: mysql-ro:3306
+    username: root
+    password: my-super-duper-secret-password
+  replicaCount: 3
+  labels:
+    app: wordpress-ro
+    generator: helm
+  ingress:
+    protocol: https
+    url: www.domain.com
+    path: /
+    annotations:
+      ingress.kubernetes.io/configuration-snippet: |
+        more_set_headers "X-Cluster: k8s";
+  phpConfig:
+    wordpress-custom.ini: |-
+      upload_max_filesize = 100M
+      post_max_size = 100M
+      max_input_vars = 5000
+      max_execution_time = 60
+      display_errors = 1
+      expose_php = Off
+      date.timezone = America/Los_Angeles
+  storage:
+    storageClassName: my-storage-class
+    size: 20G
+  resources:
+    requests:
+      memory: "256M"
+      cpu: "1"
+    limits:
+      memory: "512M"
+      cpu: "2"
+
+wordpress_rw:
+  enabled: true
+  name: wordpress-rw
+  image: icheko/wordpress-ha:1.0
+  imagePullSecret: my-pull-secret
+  db:
+    host: mysql-rw:3306
+    username: root
+    password: my-super-duper-secret-password
+  replicaCount: 1
+  labels:
+    app: wordpress-rw
+    generator: helm
+  ingress:
+    protocol: https
+    url: edit.domain.com
+    path: /
+    annotations:
+      ingress.kubernetes.io/configuration-snippet: |
+        more_set_headers "X-Cluster: k8s";
+  phpConfig:
+    wordpress-custom.ini: |-
+      upload_max_filesize = 100M
+      post_max_size = 100M
+      max_input_vars = 5000
+      max_execution_time = 60
+      display_errors = 1                                     # turn off for production
+      expose_php = Off
+      date.timezone = America/Los_Angeles
+  storage:
+    storageClassName: my-storage-class
+    size: 20G
+  resources:
+    requests:
+      memory: "256M"
+      cpu: "1"
+    limits:
+      memory: "512M"
+      cpu: "2"

@@ -1,0 +1,5 @@
+{{- $ns := .Values.namespace.name -}}
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: {{ $ns }}

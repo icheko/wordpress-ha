@@ -1,0 +1,163 @@
+{{- if .Values.wordpress.enabled -}}
+{{- $ns := .Values.namespace.name -}}
+{{- $app := .Values.wordpress -}}
+
+kind: Ingress
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ $app.name }}-ingress
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+  {{- with $app.ingress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  rules:
+    - host: {{ $app.ingress.url }}
+      http:
+        paths:
+          - path: {{ $app.ingress.path }}
+            backend:
+              serviceName: {{ $app.name }}
+              servicePort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $app.name }}
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    tier: app-ui
+{{ toYaml $app.labels | indent 4 }}
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $app.name }}-phpconfig
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+data:
+  {{- range $index, $value := $app.phpConfig }}
+  {{ $index }}: |-
+{{ $value | indent 4 }}
+  {{- end }}
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: {{ $app.name }}-db-credential
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+data:
+  password: {{ $app.db.password | b64enc }}
+  username: {{ $app.db.username | b64enc }}
+type: Opaque
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $app.name }}
+  namespace: {{ $ns }}
+  labels:
+    tier: app-ui
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  serviceName: {{ $app.name }}
+  replicas: {{ $app.replicaCount }}
+  selector:
+    matchLabels:
+      tier: app-ui
+{{ toYaml $app.labels | indent 6 }}
+  template:
+    metadata:
+      labels:
+        tier: app-ui
+{{ toYaml $app.labels | indent 8 }}
+    spec:
+      # this prevents the pod from starting on nodes
+      # with the same service for HA
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: tier
+                    operator: In
+                    values:
+                      - app-ui
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ $app.name }}
+              topologyKey: "kubernetes.io/hostname"
+      {{- if $app.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ $app.imagePullSecret }}
+      {{ end -}}
+      containers:
+        - name: wordpress
+          image: {{ $app.image }}
+          args: ["supervisord", "--nodaemon", "-c", "/etc/supervisor/supervisord.conf"]
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: {{ $app.db.host }}
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $app.name }}-db-credential
+                  key: username
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $app.name }}-db-credential
+                  key: password
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: define('WP_CONTENT_URL', '{{ $app.ingress.protocol }}://{{ $app.ingress.url }}/wp-content');
+            - name: CONTAINER_MODE
+              value: slave
+            - name: RSYNC_WORDPRESS_MASTER
+              value: wordpress-rw
+            - name: PHP_INI_SCAN_DIR
+              value: :/usr/local/etc/php/conf.custom
+          ports:
+            - name: wordpress
+              containerPort: 80
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html
+            - name: php-config
+              mountPath: /usr/local/etc/php/conf.custom
+          resources:
+            requests:
+              memory: {{ $app.resources.requests.memory }}
+              cpu: {{ $app.resources.requests.cpu }}
+            limits:
+              memory: {{ $app.resources.limits.memory }}
+              cpu: {{ $app.resources.limits.cpu }}
+      volumes:
+        - name: php-config
+          configMap:
+            name: {{ $app.name }}-phpconfig
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ $app.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ $app.storage.size }}
+{{- end }}

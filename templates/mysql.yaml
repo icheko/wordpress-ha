@@ -1,0 +1,195 @@
+{{- if .Values.mysql.enabled -}}
+{{- $ns := .Values.namespace.name -}}
+{{- $app := .Values.mysql -}}
+{{- $mysqlName := .Values.mysql.name -}}
+{{- $dataStorage := .Values.mysql.storage.dataVolume -}}
+{{- $backupStorage := .Values.mysql.storage.backupVolume -}}
+
+{{- if not $app.multiMaster -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $mysqlName }}-rw
+  namespace: {{ $ns }}
+  labels:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 3306
+      protocol: TCP
+      targetPort: 3306
+  selector:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+    v1alpha1.mysql.oracle.com/role: primary
+  type: ClusterIP
+{{ if .Values.wordpress.enabled -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $mysqlName }}-ro
+  namespace: {{ $ns }}
+  labels:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 3306
+      protocol: TCP
+      targetPort: 3306
+  selector:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+    v1alpha1.mysql.oracle.com/role: secondary
+  type: ClusterIP
+{{- end}}
+---
+{{ else }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $mysqlName }}-cluster
+  namespace: {{ $ns }}
+  labels:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 3306
+      protocol: TCP
+      targetPort: 3306
+  selector:
+    v1alpha1.mysql.oracle.com/cluster: {{ $mysqlName }}
+  type: ClusterIP
+---
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $mysqlName }}-config
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+data:
+  my.cnf: |-
+    [mysqld]
+    default_authentication_plugin=mysql_native_password
+    skip-host-cache
+    skip-name-resolve
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: {{ $mysqlName }}-root-pw
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+data:
+  password: {{ $app.root_pw | b64enc }}
+type: Opaque
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-local-volume
+  namespace: {{ $ns }}
+  labels:
+    type: local
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  accessModes:
+    {{- range $dataStorage.accessModes }}
+    - {{ . }}
+    {{- end }}
+  capacity:
+    storage: {{ $dataStorage.size }}
+  hostPath:
+    path: {{ $dataStorage.hostPath }}
+  storageClassName: {{ $dataStorage.storageClassName }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-local-backup-volume
+  namespace: {{ $ns }}
+  labels:
+    type: local
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  accessModes:
+    {{- range $backupStorage.accessModes }}
+    - {{ . }}
+    {{- end }}
+  capacity:
+    storage: {{ $backupStorage.size }}
+  hostPath:
+    path: {{ $backupStorage.hostPath }}
+  storageClassName: {{ $backupStorage.storageClassName }}
+---
+{{ if $app.useRBAC -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mysql-agent
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: mysql-agent
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mysql-agent
+subjects:
+  - kind: ServiceAccount
+    name: mysql-agent
+---
+{{ end -}}
+apiVersion: mysql.oracle.com/v1alpha1
+kind: Cluster
+metadata:
+  name: {{ $mysqlName }}
+  namespace: {{ $ns }}
+  labels:
+{{ toYaml $app.labels | indent 4 }}
+spec:
+  members: {{ $app.replicaCount }}
+  multiMaster: {{ $app.multiMaster }}
+  rootPasswordSecret:
+    name: {{ $mysqlName }}-root-pw
+  config:
+    name: {{ $mysqlName }}-config
+  volumeClaimTemplate:
+    metadata:
+      name: data
+    spec:
+      storageClassName: {{ $dataStorage.storageClassName }}
+      accessModes:
+      {{- range $dataStorage.accessModes }}
+        - {{ . }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ $dataStorage.size }}
+  backupVolumeClaimTemplate:
+    metadata:
+      name: backup-data
+    spec:
+      storageClassName: {{ $backupStorage.storageClassName }}
+      accessModes:
+      {{- range $backupStorage.accessModes }}
+        - {{ . }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ $backupStorage.size }}
+{{- end }}
