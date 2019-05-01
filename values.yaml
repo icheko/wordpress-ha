@@ -53,7 +53,7 @@ mysql_admin:
 wordpress:
   enabled: true
   name: wordpress-ro
-  image: icheko/wordpress-ha:1.0
+  image: icheko/wordpress-ha:1.1
   imagePullSecret: my-pull-secret
   db:
     host: mysql-ro:3306
@@ -93,7 +93,7 @@ wordpress:
 wordpress_rw:
   enabled: true
   name: wordpress-rw
-  image: icheko/wordpress-ha:1.0
+  image: icheko/wordpress-ha:1.1
   imagePullSecret: my-pull-secret
   db:
     host: mysql-rw:3306
