@@ -1,2 +1,5 @@
+.htaccess
+wp-admin/.htaccess
 wp-config.php
+wp-login.php
 lost+found

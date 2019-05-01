@@ -17,6 +17,7 @@ COPY rsync-server.conf /etc/rsyncd.conf
 COPY rsync-client.sh /usr/local/bin/
 
 COPY apache-server.tpl ${SUPERVISOR_ADDL_CONFIGS}
+COPY apache-slave.htaccess /var/www
 COPY rsync-server.tpl ${SUPERVISOR_ADDL_CONFIGS}
 COPY rsync-client.tpl ${SUPERVISOR_ADDL_CONFIGS}
 

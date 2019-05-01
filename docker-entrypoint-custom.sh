@@ -1,5 +1,12 @@
 #!/bin/bash
 set -e
+user="$(id -u)"
+group="$(id -g)"
+
+echo
+echo ------------------------------------------------------
+echo "[x] Starting container in ${CONTAINER_MODE} mode"
+echo "[x] Running as user ${user} - group ${group}"
 
 echo
 echo ------------------------------------------------------
@@ -15,8 +22,26 @@ fi
 
 echo
 echo ------------------------------------------------------
-echo "[x] Delete wp-config.php"
+echo "[x] Rewrite wp-config.php"
 rm -f wp-config.php
+
+if [ "$CONTAINER_MODE" = "slave" ]; then
+    echo
+    echo Additional Security Measures
+    echo ------------------------------------------------------
+    echo "[x] Overwrite root htaccess"
+    cp ../apache-slave.htaccess .htaccess
+    chown "$user:$group" .htaccess
+
+    if [ -d "wp-admin" ]; then
+        echo "[x] Deny access to wp-admin"
+        echo "Deny from all" > wp-admin/.htaccess
+        chown "$user:$group" wp-admin/.htaccess
+    fi
+
+    echo "[x] Delete wp-login.php"
+    rm -f wp-login.php
+fi
 
 echo
 echo ------------------------------------------------------
