@@ -1,0 +1,12 @@
+apiVersion: v1
+entries:
+  wordpress-ha-chart:
+  - apiVersion: v1
+    created: 2019-05-01T23:39:11.669216253-07:00
+    description: A Helm chart to launch HA Wordpress Clusters
+    digest: 11b7cebaeecd90669b324f89175470d0f1e02fd2f4dcfd0924500330e2eed7e4
+    name: wordpress-ha-chart
+    urls:
+    - wordpress-ha-chart-1.1.0.tgz
+    version: 1.1.0
+generated: 2019-05-01T23:39:11.668691586-07:00
